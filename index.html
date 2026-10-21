@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Чат — Практична робота №7</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .chat-container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .status { padding: 8px; margin-bottom: 15px; border-radius: 4px; font-weight: bold; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        #chat-box { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin-bottom: 15px; background: #fafafa; }
+        .msg { margin-bottom: 10px; }
+        .msg-time { font-size: 0.8em; color: #888; }
+        .msg-user { font-weight: bold; color: #0056b3; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        #username { width: 30%; }
+        #message-text { flex-grow: 1; }
+        button { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <h2>WebSocket Чат</h2>
+    <div id="status" class="status disconnected">Статус: Відключено</div>
+    
+    <div id="chat-box"></div>
+
+    <div class="controls">
+        <input type="text" id="username" placeholder="Ваше ім'я" value="User1">
+        <input type="text" id="message-text" placeholder="Напишіть повідомлення...">
+        <button type="button" onclick="sendMessage()">Надіслати</button>
+    </div>
+    <br>
+    <div class="controls">
+        <button type="button" onclick="connectWS()">Підключитися</button>
+        <button type="button" onclick="disconnectWS()">Закрити з'єднання</button>
+        <button type="button" onclick="requestMessages()">Оновити список</button>
+    </div>
+</div>
+
+<script>
+    let socket = null;
+
+    function connectWS() {
+        if (socket && socket.readyState === WebSocket.OPEN) return;
+
+        socket = new WebSocket('ws://localhost:8080');
+
+        socket.onopen = () => {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = 'Статус: Підключено';
+            statusDiv.className = 'status connected';
+            console.log('З\'єднання встановлено');
+        };
+
+        socket.onmessage = (event) => {
+            const response = JSON.parse(event.data);
+            if (response.type === 'ALL_MESSAGES') {
+                renderMessages(response.data);
+            }
+        };
+
+        socket.onclose = () => {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = 'Статус: Відключено';
+            statusDiv.className = 'status disconnected';
+            console.log('З\'єднання закрито');
+        };
+
+        socket.onerror = (error) => {
+            console.error('Помилка WebSocket:', error);
+        };
+    }
+
+    function sendMessage() {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            alert('Немає підключення до сервера!');
+            return;
+        }
+
+        const username = document.getElementById('username').value.trim();
+        const text = document.getElementById('message-text').value.trim();
+
+        if (!username || !text) return;
+
+        const payload = {
+            action: 'ADD_MESSAGE',
+            username: username,
+            text: text
+        };
+
+        socket.send(JSON.stringify(payload));
+        document.getElementById('message-text').value = '';
+    }
+
+    function requestMessages() {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ action: 'GET_MESSAGES' }));
+        }
+    }
+
+    function disconnectWS() {
+        if (socket) {
+            socket.close();
+        }
+    }
+
+    function renderMessages(messages) {
+        const chatBox = document.getElementById('chat-box');
+        chatBox.innerHTML = '';
+        messages.forEach(msg => {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'msg';
+            msgDiv.innerHTML = `<span class="msg-time">[${msg.timestamp}]</span> <span class="msg-user">${msg.username}:</span> ${msg.text}`;
+            chatBox.appendChild(msgDiv);
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    window.onload = connectWS;
+
+    document.getElementById('btn-send').addEventListener('click', sendMessage);
+document.getElementById('btn-connect').addEventListener('click', connectWS);
+document.getElementById('btn-disconnect').addEventListener('click', disconnectWS);
+document.getElementById('btn-refresh').addEventListener('click', requestMessages);
+
+</script>
+
+</body>
+</html>
